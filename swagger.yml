@@ -1,0 +1,853 @@
+openapi: 3.0.3
+info:
+  title: KBTG Transfer API
+  description: |
+    Point Transfer System API for transferring points between users.
+    
+    Features:
+    - User management with point balance tracking
+    - Point transfers with idempotency support
+    - Transaction history (ledger) tracking
+    - Atomic operations with rollback on error
+    
+    Based on KBTG AI Workshop specifications.
+  version: 1.0.0
+  contact:
+    name: API Support
+    email: support@example.com
+
+servers:
+  - url: http://localhost:3000/api/v1
+    description: Development server
+
+tags:
+  - name: users
+    description: User management operations
+  - name: transfers
+    description: Point transfer operations
+  - name: ledger
+    description: Transaction history operations
+
+paths:
+  /users:
+    get:
+      tags:
+        - users
+      summary: Get all users
+      description: Retrieve a list of all users in the system
+      operationId: getUsers
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/User'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    
+    post:
+      tags:
+        - users
+      summary: Create a new user
+      description: Create a new user with initial balance
+      operationId: createUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateUserRequest'
+      responses:
+        '201':
+          description: User created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/User'
+        '400':
+          description: Invalid request body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Failed to create user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /users/{id}:
+    get:
+      tags:
+        - users
+      summary: Get user by ID
+      description: Retrieve a single user by their ID
+      operationId: getUser
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: User ID
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/User'
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    
+    put:
+      tags:
+        - users
+      summary: Update user
+      description: Update an existing user's information
+      operationId: updateUser
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: User ID
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateUserRequest'
+      responses:
+        '200':
+          description: User updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/User'
+        '400':
+          description: Invalid request body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Failed to update user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    
+    delete:
+      tags:
+        - users
+      summary: Delete user
+      description: Delete a user from the system
+      operationId: deleteUser
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: User ID
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+      responses:
+        '200':
+          description: User deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: User deleted successfully
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Failed to delete user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /users/{id}/balance:
+    get:
+      tags:
+        - users
+      summary: Get user balance
+      description: Retrieve the current point balance of a user
+      operationId: getUserBalance
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: User ID
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      user_id:
+                        type: integer
+                        format: int64
+                        example: 1
+                      balance:
+                        type: integer
+                        example: 1000
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /transfers:
+    get:
+      tags:
+        - transfers
+      summary: Get all transfers
+      description: Retrieve a list of transfers with optional filtering
+      operationId: getTransfers
+      parameters:
+        - name: user_id
+          in: query
+          required: false
+          description: Filter transfers by user ID (sender or receiver)
+          schema:
+            type: integer
+            format: int64
+        - name: status
+          in: query
+          required: false
+          description: Filter transfers by status
+          schema:
+            type: string
+            enum:
+              - pending
+              - processing
+              - completed
+              - failed
+              - cancelled
+              - reversed
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Transfer'
+        '500':
+          description: Failed to fetch transfers
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    
+    post:
+      tags:
+        - transfers
+      summary: Create a new transfer
+      description: |
+        Create a new point transfer between users.
+        
+        Features:
+        - Idempotency: Same idempotency_key returns existing transfer
+        - Atomic: All operations succeed or fail together
+        - Validation: Checks balance, users exist, not self-transfer
+        - Audit: Creates ledger entries for both users
+      operationId: createTransfer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTransferRequest'
+      responses:
+        '201':
+          description: Transfer created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/Transfer'
+        '200':
+          description: Transfer already exists (idempotent response)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/Transfer'
+                  message:
+                    type: string
+                    example: Transfer already exists (idempotent)
+        '400':
+          description: Invalid request (missing fields, insufficient balance, same user, etc.)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                missingFields:
+                  summary: Missing required fields
+                  value:
+                    error: Missing required fields or invalid amount
+                insufficientBalance:
+                  summary: Insufficient balance
+                  value:
+                    error: Insufficient balance
+                sameUser:
+                  summary: Cannot transfer to same user
+                  value:
+                    error: Cannot transfer to the same user
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                fromUserNotFound:
+                  summary: From user not found
+                  value:
+                    error: From user not found
+                toUserNotFound:
+                  summary: To user not found
+                  value:
+                    error: To user not found
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /transfers/{id}:
+    get:
+      tags:
+        - transfers
+      summary: Get transfer by idempotency key
+      description: Retrieve a single transfer by its idempotency key
+      operationId: getTransfer
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Transfer idempotency key
+          schema:
+            type: string
+            example: transfer-2025-10-17-001
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/Transfer'
+        '404':
+          description: Transfer not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    
+    delete:
+      tags:
+        - transfers
+      summary: Cancel transfer
+      description: |
+        Cancel a pending or processing transfer.
+        
+        - Only pending/processing transfers can be cancelled
+        - Processing transfers will have their balances reversed
+        - Completed transfers cannot be cancelled
+      operationId: cancelTransfer
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Transfer idempotency key
+          schema:
+            type: string
+            example: transfer-2025-10-17-001
+      responses:
+        '200':
+          description: Transfer cancelled successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/Transfer'
+                  message:
+                    type: string
+                    example: Transfer cancelled successfully
+        '400':
+          description: Cannot cancel transfer (already completed, failed, etc.)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Cannot cancel transfer with status: completed"
+        '404':
+          description: Transfer not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /users/{user_id}/ledger:
+    get:
+      tags:
+        - ledger
+      summary: Get user's transaction history
+      description: Retrieve the complete transaction history (ledger) for a user
+      operationId: getUserLedger
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          description: User ID
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+        - name: event_type
+          in: query
+          required: false
+          description: Filter by event type
+          schema:
+            type: string
+            enum:
+              - transfer_out
+              - transfer_in
+              - adjust
+              - earn
+              - redeem
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/PointLedger'
+        '500':
+          description: Failed to fetch ledger
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+components:
+  schemas:
+    User:
+      type: object
+      required:
+        - id
+        - name
+        - email
+        - balance
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 1
+          description: User ID (auto-generated)
+        name:
+          type: string
+          maxLength: 100
+          example: John Doe
+          description: User's full name
+        email:
+          type: string
+          format: email
+          maxLength: 100
+          example: john@example.com
+          description: User's email (must be unique)
+        balance:
+          type: integer
+          minimum: 0
+          example: 1000
+          description: Current point balance
+        created_at:
+          type: string
+          format: date-time
+          example: "2025-10-17T10:00:00Z"
+          description: User creation timestamp
+        updated_at:
+          type: string
+          format: date-time
+          example: "2025-10-17T10:00:00Z"
+          description: Last update timestamp
+
+    CreateUserRequest:
+      type: object
+      required:
+        - name
+        - email
+      properties:
+        name:
+          type: string
+          maxLength: 100
+          example: John Doe
+          description: User's full name
+        email:
+          type: string
+          format: email
+          maxLength: 100
+          example: john@example.com
+          description: User's email (must be unique)
+        balance:
+          type: integer
+          minimum: 0
+          default: 0
+          example: 1000
+          description: Initial point balance (optional, defaults to 0)
+
+    UpdateUserRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 100
+          example: Jane Doe
+          description: User's full name
+        email:
+          type: string
+          format: email
+          maxLength: 100
+          example: jane@example.com
+          description: User's email (must be unique)
+        balance:
+          type: integer
+          minimum: 0
+          example: 1500
+          description: Point balance
+
+    Transfer:
+      type: object
+      required:
+        - id
+        - from_user_id
+        - to_user_id
+        - amount
+        - status
+        - idempotency_key
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 1
+          description: Transfer ID (auto-generated, internal use)
+        from_user_id:
+          type: integer
+          format: int64
+          example: 1
+          description: Sender's user ID
+        to_user_id:
+          type: integer
+          format: int64
+          example: 2
+          description: Receiver's user ID
+        amount:
+          type: integer
+          minimum: 1
+          example: 100
+          description: Amount of points to transfer (must be > 0)
+        status:
+          type: string
+          enum:
+            - pending
+            - processing
+            - completed
+            - failed
+            - cancelled
+            - reversed
+          example: completed
+          description: Current status of the transfer
+        note:
+          type: string
+          example: Payment for service
+          description: Optional note/description for the transfer
+        idempotency_key:
+          type: string
+          maxLength: 255
+          example: transfer-2025-10-17-001
+          description: Unique key for idempotency (used as ID in GET requests)
+        created_at:
+          type: string
+          format: date-time
+          example: "2025-10-17T10:00:00Z"
+          description: Transfer creation timestamp
+        updated_at:
+          type: string
+          format: date-time
+          example: "2025-10-17T10:00:01Z"
+          description: Last update timestamp
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+          example: "2025-10-17T10:00:01Z"
+          description: Completion timestamp (null if not completed)
+        fail_reason:
+          type: string
+          nullable: true
+          example: Insufficient balance
+          description: Reason for failure (null if not failed)
+        from_user:
+          $ref: '#/components/schemas/User'
+          description: Sender user details (included in response)
+        to_user:
+          $ref: '#/components/schemas/User'
+          description: Receiver user details (included in response)
+
+    CreateTransferRequest:
+      type: object
+      required:
+        - from_user_id
+        - to_user_id
+        - amount
+        - idempotency_key
+      properties:
+        from_user_id:
+          type: integer
+          format: int64
+          minimum: 1
+          example: 1
+          description: Sender's user ID
+        to_user_id:
+          type: integer
+          format: int64
+          minimum: 1
+          example: 2
+          description: Receiver's user ID
+        amount:
+          type: integer
+          minimum: 1
+          example: 100
+          description: Amount of points to transfer (must be > 0)
+        note:
+          type: string
+          example: Payment for service
+          description: Optional note/description for the transfer
+        idempotency_key:
+          type: string
+          maxLength: 255
+          example: transfer-2025-10-17-001
+          description: |
+            Unique key for idempotency.
+            Recommended format: transfer-{date}-{sequence}
+            Same key will return existing transfer without creating duplicate
+
+    PointLedger:
+      type: object
+      required:
+        - id
+        - user_id
+        - change
+        - balance_after
+        - event_type
+        - created_at
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 1
+          description: Ledger entry ID (auto-generated)
+        user_id:
+          type: integer
+          format: int64
+          example: 1
+          description: User ID this entry belongs to
+        change:
+          type: integer
+          example: -100
+          description: |
+            Point change amount
+            Positive for receiving points
+            Negative for sending points
+        balance_after:
+          type: integer
+          example: 900
+          description: User's balance after this transaction
+        event_type:
+          type: string
+          enum:
+            - transfer_out
+            - transfer_in
+            - adjust
+            - earn
+            - redeem
+          example: transfer_out
+          description: |
+            Type of event:
+            - transfer_out: Points sent to another user
+            - transfer_in: Points received from another user
+            - adjust: Manual adjustment by admin
+            - earn: Points earned (rewards, bonuses)
+            - redeem: Points redeemed (purchases)
+        transfer_id:
+          type: integer
+          format: int64
+          nullable: true
+          example: 1
+          description: Reference to transfer ID (null if not a transfer event)
+        reference:
+          type: string
+          maxLength: 255
+          example: transfer-2025-10-17-001
+          description: Reference identifier (e.g., idempotency key)
+        metadata:
+          type: string
+          nullable: true
+          example: '{"reason": "monthly bonus"}'
+          description: Additional metadata as JSON string
+        created_at:
+          type: string
+          format: date-time
+          example: "2025-10-17T10:00:00Z"
+          description: Ledger entry creation timestamp
+        user:
+          $ref: '#/components/schemas/User'
+          description: User details (included in response)
+        transfer:
+          $ref: '#/components/schemas/Transfer'
+          description: Transfer details if event_type is transfer_in/transfer_out
+
+    Error:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: string
+          example: User not found
+          description: Error message describing what went wrong
+
+  securitySchemes:
+    # Add authentication schemes here if needed in the future
+    # bearerAuth:
+    #   type: http
+    #   scheme: bearer
+    #   bearerFormat: JWT
+
+# Global security (uncomment when authentication is implemented)
+# security:
+#   - bearerAuth: []

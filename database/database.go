@@ -31,6 +31,9 @@ func InitDatabase() {
 		&models.DeliveryAddress{},
 		&models.Order{},
 		&models.LineItem{},
+		&models.User{},
+		&models.Transfer{},
+		&models.PointLedger{},
 	)
 
 	if err != nil {

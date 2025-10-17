@@ -25,4 +25,23 @@ func SetupRoutes(app *fiber.App) {
 	orders.Post("/", handlers.CreateOrder)
 	orders.Put("/:id", handlers.UpdateOrder)
 	orders.Delete("/:id", handlers.DeleteOrder)
+
+	// User routes
+	users := api.Group("/users")
+	users.Get("/", handlers.GetUsers)
+	users.Get("/:id", handlers.GetUser)
+	users.Post("/", handlers.CreateUser)
+	users.Put("/:id", handlers.UpdateUser)
+	users.Delete("/:id", handlers.DeleteUser)
+	users.Get("/:id/balance", handlers.GetUserBalance)
+
+	// Transfer routes
+	transfers := api.Group("/transfers")
+	transfers.Get("/", handlers.GetTransfers)
+	transfers.Get("/:id", handlers.GetTransfer)
+	transfers.Post("/", handlers.CreateTransfer)
+	transfers.Delete("/:id", handlers.CancelTransfer)
+
+	// Point Ledger routes
+	api.Get("/users/:user_id/ledger", handlers.GetUserLedger)
 }

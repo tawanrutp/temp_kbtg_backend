@@ -12,7 +12,11 @@ Backend project using Go, Fiber framework, and SQLite database with CRUD operati
 ✅ RESTful API with Fiber framework  
 ✅ SQLite database with GORM  
 ✅ CRUD operations for Customers and Orders  
+✅ **Point Transfer System** - Transfer points between users with idempotency  
+✅ **Point Ledger** - Track all point transactions with detailed history  
+✅ **OpenAPI 3.0 Specification** - Complete API documentation in swagger.yml  
 ✅ Auto-migration database schema  
+✅ Transaction support for atomic operations  
 ✅ CORS enabled  
 ✅ Request logging middleware  
 
@@ -38,6 +42,9 @@ The application uses SQLite database (`kbtg.db`) with the following tables:
 - **delivery_addresses** - Customer delivery addresses
 - **orders** - Customer orders
 - **line_items** - Order line items
+- **users** - Users with point balances
+- **transfers** - Point transfers between users
+- **point_ledger** - Transaction history for all point changes
 
 Database will be auto-created and migrated on first run.
 
@@ -61,7 +68,36 @@ Database will be auto-created and migrated on first run.
 - `PUT /api/v1/orders/:id` - Update order
 - `DELETE /api/v1/orders/:id` - Delete order
 
-See [API_USAGE.md](API_USAGE.md) for detailed API documentation and examples.
+### Users (CRUD)
+- `GET /api/v1/users` - Get all users
+- `GET /api/v1/users/:id` - Get user by ID
+- `POST /api/v1/users` - Create new user
+- `PUT /api/v1/users/:id` - Update user
+- `DELETE /api/v1/users/:id` - Delete user
+- `GET /api/v1/users/:id/balance` - Get user balance
+
+### Transfers
+- `POST /api/v1/transfers` - Create point transfer (with idempotency)
+- `GET /api/v1/transfers` - Get all transfers (with filters)
+- `GET /api/v1/transfers/:id` - Get transfer by idempotency key
+- `DELETE /api/v1/transfers/:id` - Cancel transfer
+
+### Point Ledger
+- `GET /api/v1/users/:user_id/ledger` - Get user's transaction history
+
+## API Documentation
+
+📘 **OpenAPI Specification**: [`swagger.yml`](swagger.yml) - Complete API specification in OpenAPI 3.0.3 format
+
+View the interactive documentation:
+- Use [Swagger Editor](https://editor.swagger.io/) - Import `swagger.yml`
+- Use Swagger UI locally - See [SWAGGER_GUIDE.md](SWAGGER_GUIDE.md)
+- Validate compliance - Run `validate_swagger_compliance.bat`
+
+See also:
+- [TRANSFER_API.md](TRANSFER_API.md) - Transfer API detailed guide
+- [API_USAGE.md](API_USAGE.md) - Customer/Order API guide
+- [SWAGGER_GUIDE.md](SWAGGER_GUIDE.md) - How to use the Swagger specification
 
 ## Example Usage
 
@@ -106,15 +142,21 @@ temp_kbtg_backend/
 ├── go.mod               # Go module dependencies
 ├── kbtg.db              # SQLite database (auto-created)
 ├── models/
-│   └── customer.go      # Database models
+│   ├── customer.go      # Customer and Order models
+│   └── transfer.go      # User, Transfer, and PointLedger models
 ├── database/
 │   └── database.go      # Database connection and initialization
 ├── handlers/
 │   ├── customer_handler.go  # Customer CRUD handlers
-│   └── order_handler.go     # Order CRUD handlers
+│   ├── order_handler.go     # Order CRUD handlers
+│   ├── user_handler.go      # User CRUD handlers
+│   └── transfer_handler.go  # Transfer and ledger handlers
 ├── routes/
 │   └── routes.go        # API routes setup
-├── API_USAGE.md         # Detailed API documentation
+├── swagger.yml          # OpenAPI 3.0.3 specification
+├── API_USAGE.md         # Customer & Order API documentation
+├── TRANSFER_API.md      # Transfer & Point system documentation
+├── SWAGGER_GUIDE.md     # Swagger specification guide
 └── README.md            # Project documentation
 ```
 
